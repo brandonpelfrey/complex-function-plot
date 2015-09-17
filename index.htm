@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <link href='https://fonts.googleapis.com/css?family=Roboto' rel='stylesheet' type='text/css'>
+
+  <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+  <script src="peg-0.9.0.min.js"></script>
+  <script src="three.min.js"></script>
+
+
+
+  <title>Complex Function Plotter</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    html,body {
+      background-color: rgba(30,30,30,1);
+      font-family: 'Roboto', sans-serif;
+      color: rgba(210,210,210,1);
+
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    #container {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .flex-box {
+      padding: 10px;
+
+    }
+
+    #input-area {
+      flex: 1;
+      text-align: center;
+      width:100%;
+    }
+
+    #display-area {
+      flex: 20;
+      text-align: center;
+    }
+
+    h1 {
+      margin: 0;
+      display: inline;
+    }
+
+    .equation-input {
+      width: 45%;
+      background-color: rgba(255,255,255,0.05);
+      color: rgba(255,255,255,.95);
+      font-size: large;
+      border: 0;
+      padding: 10px;
+      margin: 0;
+      border-radius: 5px 5px;
+    }
+
+    .separator {
+      margin: 10px 0 10px 0;
+      border-bottom: 1px solid rgba(200,200,200,1);
+    }
+
+    .control-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+  </style>
+</head>
+<body>
+  <script type="peg-grammar" id="complex-expression-peg-grammar">
+  /*
+   * Simple Arithmetics Grammar
+   * (Utilized http://pegjs.org/ to build a parser based on this grammar)
+   * ==========================
+   * Accepts expressions like "2 * (3 + 4)" and computes their value.
+   */
+
+  {
+    function combine(first, rest, combiners) {
+      var result = first, i;
+
+      for (i = 0; i < rest.length; i++) {
+        result = combiners[rest[i][1]](result, rest[i][3]);
+      }
+
+      return result;
+    }
+
+  }
+
+  Expression
+    = first:Term rest:(_ ("+" / "-") _ Term)* _ {
+        return combine(first, rest, {
+          "+": function(left, right) { return 'complex_add(' + left + ',' + right + ')'; },
+          "-": function(left, right) { return 'complex_sub(' + left + ',' + right + ')'; }
+        });
+      }
+
+  Term
+    = first:Powered rest:(_ ("*" / "/") _ Powered)* {
+        return combine(first, rest, {
+          "*": function(left, right) { return 'complex_mul(' + left + ',' + right + ')'; },
+          "/": function(left, right) { return 'complex_div(' + left + ',' + right + ')'; }
+        });
+      }
+
+  Powered
+    =  _ left:Factor _ "^" _ right:Factor _ { return 'complex_pow(' + left + ',' + right + ')'; }
+    / Factor
+
+  Factor
+    = "(" _ expr:Expression _ ")" { return expr; }
+    / _ "log" _ "(" _ arg:Expression _ ")" _ { return 'complex_log(' + arg + ')'; }
+    / _ "cos" _ "(" _ arg:Expression _ ")" _ { return 'complex_cos(' + arg + ')'; }
+    / _ "sin" _ "(" _ arg:Expression _ ")" _ { return 'complex_sin(' + arg + ')'; }
+    / _ "tan" _ "(" _ arg:Expression _ ")" _ { return 'complex_tan(' + arg + ')'; }
+    / Complex
+
+  Complex
+    = "<" _ a:Real _ "," _ b:Real _ ">" { return 'complex(' + a + ',' + b + ')'; }
+    / "z"     { return 'complex(a,b)'; }
+    / "i"     { return 'complex(0.0,1.0)'; }
+    / "r"     { return 'complex_r(a,b)'; }
+    / "theta" { return 'complex_theta(a,b)'; }
+    / a:Real  { return 'complex(' + a + ',0.0)'; }
+
+  Real
+    = whole:Integer "." fractional:Integer { return '' + whole + '.' + fractional; }
+    / whole:Integer { return '' + whole + '.0'; }
+    / "pi" { return '3.14159265359'; }
+    / "e" { return '2.7182818284'; }
+    / "a" { return 'a'; }
+    / "b" { return 'b'; }
+    / "t" { return 't'; }
+
+  Integer "integer"
+    = [0-9]+ { return text(); }
+    / "-" int:Integer { return "-" + int;}
+
+  _ "whitespace"
+    = [ \t\n\r]*
+  </script>
+
+  <!-- Shaders -->
+	<script type="x-shader/x-vertex" id="vertexshader">
+		// switch on high precision floats
+		#ifdef GL_ES
+		  precision highp float;
+		#endif
+    varying vec2 vUv;
+    uniform float t;
+
+		void main()
+		{
+      vUv = uv;
+			gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+		}
+	</script>
+
+	<script type="x-shader/x-fragment" id="fragmentshader">
+		#ifdef GL_ES
+		  precision highp float;
+		#endif
+
+    #define M_PI 3.1415926535897932384626433832795
+    #define M_E 2.7182818284
+
+    #define A x.x
+    #define B x.y
+    #define C y.x
+    #define D y.y
+
+    varying vec2 vUv;
+    uniform float t;
+
+    // Convert from Hue,Saturation/Value to RGB
+    // http://lolengine.net/blog/2013/07/27/rgb-to-hsv-in-glsl
+    vec3 hsv2rgb(vec3 c)
+    {
+      vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+      vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+      return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+    }
+
+    float arg(vec2 x) { return length(x); }
+
+    vec2 complex_r(float x, float y) { return vec2(length(vec2(x,y)), 0); }
+    vec2 complex_theta(float x, float y) { return vec2(arg(vec2(x,y)), 0); }
+    vec2 complex(float x, float y) { return vec2(x,y); }
+
+    // https://en.wikipedia.org/wiki/Complex_number#Elementary_operations
+    vec2 complex_add(vec2 x, vec2 y) { return x + y; }
+    vec2 complex_sub(vec2 x, vec2 y) { return x - y; }
+    vec2 complex_mul(vec2 x, vec2 y) { return vec2( A*C-B*D, B*C+A*D); }
+    vec2 complex_div(vec2 x, vec2 y) { return vec2( (A*C+B*D)/(C*C+D*D), (B*C-A*D)/(C*C+D*D)); }
+
+    // http://www.abecedarical.com/zenosamples/zs_complexnumbers.html
+    vec2 complex_pow(vec2 x, vec2 y) {
+      float rho = length(x);
+      float theta = arg(x);
+      float angle = C * theta + D * log(rho);
+      float real = cos(angle);
+      float imag = sin(angle);
+      return vec2(real, imag) * (pow(rho, C) * pow(M_E, -D * theta));
+    }
+
+    vec2 complex_sin(vec2 x) {
+      float z = arg(x);
+      vec2 eiz = complex_pow( vec2(M_E, 0.0), vec2(0.0, z) );
+      vec2 einz = complex_pow( vec2(M_E, 0.0), vec2(0.0, -z) );
+      return complex_div( eiz - einz, complex(0.0, 2.0));
+    }
+
+    vec2 complex_cos(vec2 x) {
+      float z = arg(x);
+      vec2 eiz = complex_pow( vec2(M_E, 0.0), vec2(0.0, z) );
+      vec2 einz = complex_pow( vec2(M_E, 0.0), vec2(0.0, -z) );
+      return complex_div( eiz + einz, complex(2.0, 0.0));
+    }
+
+    vec2 complex_log(vec2 x) {
+      return vec2( log(x.x), arg(x) );
+    }
+
+		void main()
+		{
+      float a = vUv.x*2.0 - 1.0;
+      float b = vUv.y*2.0 - 1.0;
+
+      a *= 2.0;
+      b *= 2.0;
+
+      vec2 final_expr = EXPRESSION;
+
+      float _r = length(final_expr);
+      _r = 0.8 + (sin(_r) + 1.0) * 0.5 * 0.3;
+
+      float _arg = atan(final_expr[1], final_expr[0]) / M_PI + 1.0;
+
+      vec3 hsv = vec3(_arg, 0.5, _r);
+      vec3 rgb = hsv2rgb( hsv );
+
+			gl_FragColor = vec4(rgb, 1.0);
+		}
+	</script>
+
+  <div id="container">
+    <div class="flex-box" id="display-area">
+
+    </div>
+
+    <div class="flex-box" id="input-area">
+      <div><input id="equation-input" class="equation-input" placeholder="Input complex expression, e.g. 1 / (z^2 + t * i)^t - z"></input></div>
+    </div>
+
+  </div>
+
+  <script>
+  	// set canvas size
+  	var WIDTH = $('#display-area').width(),
+  	    HEIGHT = $('#display-area').height();
+
+  	// get the DOM element to attach to
+  	// - assume we've got jQuery to hand
+  	var $container = $('#display-area');
+
+  	// create a WebGL renderer, camera
+  	// and a scene
+  	renderer = new THREE.WebGLRenderer();
+    camera = new THREE.OrthographicCamera( WIDTH / - 2, WIDTH / 2, HEIGHT / 2, HEIGHT / - 2, 1, 10 );
+  	scene = new THREE.Scene();
+
+
+  	// the camera starts at 0,0,0 so pull it back
+  	camera.position.z = 5;
+    renderer.setSize(WIDTH, HEIGHT);
+
+    function reset_camera() {
+      var WIDTH = $('#display-area').width(),
+    	    HEIGHT = $('#display-area').height();
+
+      var side = Math.min(WIDTH, HEIGHT);
+      renderer.setSize(side, side);
+    }
+
+    reset_camera();
+
+  	// attach the render-supplied DOM element
+  	$container.append(renderer.domElement);
+
+    var pegParser = PEG.buildParser( $('#complex-expression-peg-grammar').text() );
+    var compiledExpression = pegParser.parse('1 / (z^2 + t * i)^t - z');
+
+  	var shaderMaterial = new THREE.ShaderMaterial({
+  		vertexShader:   $('#vertexshader').text(),
+  		fragmentShader: $('#fragmentshader').text().replace('EXPRESSION', compiledExpression)
+  	});
+
+    var plane = new THREE.PlaneBufferGeometry( WIDTH, HEIGHT );
+    var quad = new THREE.Mesh( plane, shaderMaterial );
+    quad.position.z = 0;
+
+		scene.add( quad );
+
+  	// draw!
+
+    function update_expression(new_expression) {
+      var compiledExpression = pegParser.parse(new_expression);
+
+    	var shaderMaterial = new THREE.ShaderMaterial({
+        uniforms: {
+      		t: { type: "f", value: 1.0 }
+      	},
+    		vertexShader:   $('#vertexshader').text(),
+    		fragmentShader: $('#fragmentshader').text().replace('EXPRESSION', compiledExpression)
+    	});
+
+      quad.material = shaderMaterial;
+    }
+
+    function render() {
+      quad.material.uniforms.t.value = Math.sin( new Date().getTime() * 0.001 );
+      quad.material.uniforms.t.needsUpdate = true;
+      renderer.render(scene, camera);
+
+      requestAnimationFrame(render);
+    }
+
+    update_expression('1 / (z^2 + t * i)^t - z');
+    render();
+
+    $('#equation-input').change(function() {
+      var expression_text = $(this).val();
+      update_expression( expression_text );
+      render();
+    });
+
+    $( window ).resize(function() {
+      reset_camera();
+    });
+
+	</script>
+
+</body>
+</html>
