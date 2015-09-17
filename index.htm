@@ -124,15 +124,12 @@
     / _ "log" _ "(" _ arg:Expression _ ")" _ { return 'complex_log(' + arg + ')'; }
     / _ "cos" _ "(" _ arg:Expression _ ")" _ { return 'complex_cos(' + arg + ')'; }
     / _ "sin" _ "(" _ arg:Expression _ ")" _ { return 'complex_sin(' + arg + ')'; }
-    / _ "tan" _ "(" _ arg:Expression _ ")" _ { return 'complex_tan(' + arg + ')'; }
     / Complex
 
   Complex
     = "<" _ a:Real _ "," _ b:Real _ ">" { return 'complex(' + a + ',' + b + ')'; }
     / "z"     { return 'complex(a,b)'; }
     / "i"     { return 'complex(0.0,1.0)'; }
-    / "r"     { return 'complex_r(a,b)'; }
-    / "theta" { return 'complex_theta(a,b)'; }
     / a:Real  { return 'complex(' + a + ',0.0)'; }
 
   Real
@@ -142,7 +139,10 @@
     / "e" { return '2.7182818284'; }
     / "a" { return 'a'; }
     / "b" { return 'b'; }
+    / "theta" { return 'complex_theta(a,b)'; }
     / "t" { return 't'; }
+    / "r"     { return 'complex_r(a,b)'; }
+
 
   Integer "integer"
     = [0-9]+ { return text(); }
@@ -183,6 +183,7 @@
 
     varying vec2 vUv;
     uniform float t;
+    uniform sampler2D gridTexture;
 
     // Convert from Hue,Saturation/Value to RGB
     // http://lolengine.net/blog/2013/07/27/rgb-to-hsv-in-glsl
@@ -193,10 +194,10 @@
       return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
     }
 
-    float arg(vec2 x) { return length(x); }
+    float arg(vec2 x) { return atan(B,A); }
 
-    vec2 complex_r(float x, float y) { return vec2(length(vec2(x,y)), 0); }
-    vec2 complex_theta(float x, float y) { return vec2(arg(vec2(x,y)), 0); }
+    float complex_r(float x, float y) { return length(vec2(x,y)); }
+    float complex_theta(float x, float y) { return arg(vec2(x,y)); }
     vec2 complex(float x, float y) { return vec2(x,y); }
 
     // https://en.wikipedia.org/wiki/Complex_number#Elementary_operations
@@ -216,42 +217,57 @@
     }
 
     vec2 complex_sin(vec2 x) {
-      float z = arg(x);
-      vec2 eiz = complex_pow( vec2(M_E, 0.0), vec2(0.0, z) );
-      vec2 einz = complex_pow( vec2(M_E, 0.0), vec2(0.0, -z) );
+      vec2 iz = complex_mul(vec2(0.0, 1.0), x);
+      vec2 inz = complex_mul(vec2(0.0, -1.0), x);
+      vec2 eiz = complex_pow( vec2(M_E, 0.0), iz );
+      vec2 einz = complex_pow( vec2(M_E, 0.0), inz );
       return complex_div( eiz - einz, complex(0.0, 2.0));
     }
 
     vec2 complex_cos(vec2 x) {
-      float z = arg(x);
-      vec2 eiz = complex_pow( vec2(M_E, 0.0), vec2(0.0, z) );
-      vec2 einz = complex_pow( vec2(M_E, 0.0), vec2(0.0, -z) );
+      vec2 iz = complex_mul(vec2(0.0, 1.0), x);
+      vec2 inz = complex_mul(vec2(0.0, -1.0), x);
+      vec2 eiz = complex_pow( vec2(M_E, 0.0), iz );
+      vec2 einz = complex_pow( vec2(M_E, 0.0), inz );
       return complex_div( eiz + einz, complex(2.0, 0.0));
     }
 
     vec2 complex_log(vec2 x) {
-      return vec2( log(x.x), arg(x) );
+      return vec2( log( length(x) ), arg(x) );
     }
 
 		void main()
 		{
       float a = vUv.x*2.0 - 1.0;
       float b = vUv.y*2.0 - 1.0;
+      const float scale = 2.0;
 
-      a *= 2.0;
-      b *= 2.0;
+      a *= scale;
+      b *= scale;
 
       vec2 final_expr = EXPRESSION;
 
-      float _r = length(final_expr);
-      _r = 0.8 + (sin(_r) + 1.0) * 0.5 * 0.3;
+      if(false) {
+        // HSV Domain Coloring
 
-      float _arg = atan(final_expr[1], final_expr[0]) / M_PI + 1.0;
+        float l = length(final_expr);
+        float _r = l;
+        _r = 0.8 + (sin(_r) + 1.0) * 0.5 * 0.3;
 
-      vec3 hsv = vec3(_arg, 0.5, _r);
-      vec3 rgb = hsv2rgb( hsv );
+        float _arg = atan(final_expr[1], final_expr[0]) / M_PI + 1.0;
 
-			gl_FragColor = vec4(rgb, 1.0);
+        vec3 hsv = vec3(_arg, 0.5, _r);
+        vec3 rgb = hsv2rgb( hsv );
+
+  			gl_FragColor = vec4(rgb, 1.0);
+
+      } else {
+        // Texture-based Domain Coloring
+
+        vec4 tex = texture2D(gridTexture, final_expr / (2.0*scale) + vec2(0.5,-0.5));
+        gl_FragColor = vec4( tex.xyz, 1.0 );
+
+      }
 		}
 	</script>
 
@@ -261,7 +277,7 @@
     </div>
 
     <div class="flex-box" id="input-area">
-      <div><input id="equation-input" class="equation-input" placeholder="Input complex expression, e.g. 1 / (z^2 + t * i)^t - z"></input></div>
+      <div><input id="equation-input" class="equation-input" placeholder="Input complex expression, e.g. 1 / (z^2 + t * i)^t - z" value="z"></input></div>
     </div>
 
   </div>
@@ -281,6 +297,14 @@
     camera = new THREE.OrthographicCamera( WIDTH / - 2, WIDTH / 2, HEIGHT / 2, HEIGHT / - 2, 1, 10 );
   	scene = new THREE.Scene();
 
+    var gridTexture = THREE.ImageUtils.loadTexture('uvgrid.jpg');
+    gridTexture.wrapS = gridTexture.wrapT = THREE.RepeatWrapping;
+    gridTexture.repeat.set( 2, 2 );
+
+    var uniforms = {
+      t: { type: "f", value: 1.0 },
+      gridTexture: { type: 't', value: gridTexture }
+    };
 
   	// the camera starts at 0,0,0 so pull it back
   	camera.position.z = 5;
@@ -300,9 +324,10 @@
   	$container.append(renderer.domElement);
 
     var pegParser = PEG.buildParser( $('#complex-expression-peg-grammar').text() );
-    var compiledExpression = pegParser.parse('1 / (z^2 + t * i)^t - z');
+    var compiledExpression = pegParser.parse('z');
 
   	var shaderMaterial = new THREE.ShaderMaterial({
+      uniforms: uniforms,
   		vertexShader:   $('#vertexshader').text(),
   		fragmentShader: $('#fragmentshader').text().replace('EXPRESSION', compiledExpression)
   	});
@@ -319,9 +344,7 @@
       var compiledExpression = pegParser.parse(new_expression);
 
     	var shaderMaterial = new THREE.ShaderMaterial({
-        uniforms: {
-      		t: { type: "f", value: 1.0 }
-      	},
+        uniforms: uniforms,
     		vertexShader:   $('#vertexshader').text(),
     		fragmentShader: $('#fragmentshader').text().replace('EXPRESSION', compiledExpression)
     	});
@@ -337,7 +360,7 @@
       requestAnimationFrame(render);
     }
 
-    update_expression('1 / (z^2 + t * i)^t - z');
+    update_expression('z');
     render();
 
     $('#equation-input').change(function() {
