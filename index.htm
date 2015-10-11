@@ -2,101 +2,82 @@
 <html>
 <head>
   <link href='https://fonts.googleapis.com/css?family=Roboto' rel='stylesheet' type='text/css'>
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.4.0/css/font-awesome.min.css">
+  <link rel="stylesheet" href="style.css">
 
   <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+  <script src="scripts/query-string-helper.js"></script>
   <script src="peg-0.9.0.min.js"></script>
   <script src="three.min.js"></script>
 
-
-
-  <title>Complex Function Plotter</title>
   <style>
-    * {
-      box-sizing: border-box;
-    }
-
-    html,body {
-      background-color: rgba(30,30,30,1);
-      font-family: 'Roboto', sans-serif;
-      color: rgba(210,210,210,1);
-
-      margin: 0;
-      padding: 0;
-      width: 100%;
-      height: 100%;
-    }
-
-    #container {
-      width: 100%;
-      height: 100%;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .flex-box {
-      padding: 10px;
-
-    }
-
-    #input-area {
-      flex: 1;
-      text-align: center;
-      width:100%;
-    }
-
-    #display-area {
-      flex: 20;
-      text-align: center;
-    }
-
-    h1 {
-      margin: 0;
-      display: inline;
-    }
-
-    .equation-input {
-      width: 45%;
-      background-color: rgba(255,255,255,0.05);
-      color: rgba(255,255,255,.95);
-      font-size: large;
+    #copyable-link {
       border: 0;
-      padding: 10px;
-      margin: 0;
-      border-radius: 5px 5px;
-    }
-
-    .separator {
-      margin: 10px 0 10px 0;
-      border-bottom: 1px solid rgba(200,200,200,1);
-    }
-
-    .control-list {
-      list-style: none;
-      margin: 0;
-      padding: 0;
+      width: 45%;
+      color: white;
+      font-size: large;
     }
   </style>
+
+  <title>Complex Function Plotter</title>
 </head>
 <body>
+
+  <video id="monitor" autoplay width="256" height="256" style="visibility: hidden; float:left;"></video>
+  <canvas id="videoImage" width="256" height="256" style="visibility: hidden; float:left;"></canvas>
+
+  <div id="container">
+    <div id="display-area">
+    </div>
+
+    <div class="full-width">
+
+      <div id="link-container" style="display: none;">
+        <input id="copyable-link" class="dark-translucent input-control" value=""></input>
+      </div>
+
+      <a class="dark-translucent input-control"
+         href="https://github.com/brandonpelfrey/complex-function-plot/wiki/Complex-Function-Plotter"
+         target="_blank">
+        <i id="show-instructions" class="fa fa-question-circle"></i>
+      </a>
+
+      <a id="show-link" class="dark-translucent input-control" href="#"><i class="fa fa-external-link"></a></i>
+
+      <input class="dark-translucent input-control"
+             id="equation-input"
+             placeholder="Input complex expression, e.g. 1 / (z^2 + t * i)^t - log(z)"
+             value="z - t + 0.1*z^2"></input>
+
+      <span id="texture-options">
+       <a class="dark-translucent input-control" href="#"><img class="thumbnail" src="images/uvgrid.jpg"></a>
+       <a class="dark-translucent input-control" href="#"><img class="thumbnail" src="images/birds.jpg"></a>
+       <a class="dark-translucent input-control" href="#"><img class="thumbnail" src="images/damask.jpg"></a>
+       <a class="dark-translucent input-control" href="#"><img class="thumbnail" src="images/geometric.png"></a>
+       <a class="dark-translucent input-control" href="#"><img class="thumbnail" src="images/branches.jpg"></a>
+       <a class="dark-translucent input-control" href="#"><img class="thumbnail" src="images/knots.jpg"></a>
+       <a class="dark-translucent input-control" href="#"><i class="fa fa-video-camera"></i></a>
+     </span>
+    </div>
+
+  </div>
+
+  <script src="scripts/webcam-stream.js"></script>
+
   <script type="peg-grammar" id="complex-expression-peg-grammar">
   /*
-   * Simple Arithmetics Grammar
-   * (Utilized http://pegjs.org/ to build a parser based on this grammar)
-   * ==========================
-   * Accepts expressions like "2 * (3 + 4)" and computes their value.
+   * Complex Arithmetic Grammar
+   * (Utilizes http://pegjs.org/ to build a parser based on this grammar)
    */
 
   {
     function combine(first, rest, combiners) {
       var result = first, i;
-
       for (i = 0; i < rest.length; i++) {
         result = combiners[rest[i][1]](result, rest[i][3]);
       }
-
       return result;
     }
-
   }
 
   Expression
@@ -143,7 +124,6 @@
     / "t" { return 't'; }
     / "r"     { return 'complex_r(a,b)'; }
 
-
   Integer "integer"
     = [0-9]+ { return text(); }
     / "-" int:Integer { return "-" + int;}
@@ -183,6 +163,7 @@
 
     varying vec2 vUv;
     uniform float t;
+    uniform float width, height;
     uniform sampler2D gridTexture;
 
     // Convert from Hue,Saturation/Value to RGB
@@ -242,11 +223,12 @@
       float b = vUv.y*2.0 - 1.0;
       const float scale = 2.0;
 
-      a *= scale;
+      a *= scale * width / height;
       b *= scale;
 
       vec2 final_expr = EXPRESSION;
 
+      // TODO : Make this user-controlled
       if(false) {
         // HSV Domain Coloring
 
@@ -271,40 +253,36 @@
 		}
 	</script>
 
-  <div id="container">
-    <div class="flex-box" id="display-area">
-
-    </div>
-
-    <div class="flex-box" id="input-area">
-      <div><input id="equation-input" class="equation-input" placeholder="Input complex expression, e.g. 1 / (z^2 + t * i)^t - z" value="z"></input></div>
-    </div>
-
-  </div>
-
   <script>
-  	// set canvas size
+    // TODO : Clean this up a bit. It's still pretty messy.
+
+  	// Get the starting canvas size
   	var WIDTH = $('#display-area').width(),
   	    HEIGHT = $('#display-area').height();
 
-  	// get the DOM element to attach to
-  	// - assume we've got jQuery to hand
+  	// Get the DOM element to attach the render canvas to
   	var $container = $('#display-area');
 
-  	// create a WebGL renderer, camera
-  	// and a scene
+  	// Create a WebGL renderer, camera and a scene
   	renderer = new THREE.WebGLRenderer();
     camera = new THREE.OrthographicCamera( WIDTH / - 2, WIDTH / 2, HEIGHT / 2, HEIGHT / - 2, 1, 10 );
   	scene = new THREE.Scene();
 
-    var gridTexture = THREE.ImageUtils.loadTexture('uvgrid.jpg');
-    gridTexture.wrapS = gridTexture.wrapT = THREE.RepeatWrapping;
-    gridTexture.repeat.set( 2, 2 );
-
     var uniforms = {
       t: { type: "f", value: 1.0 },
-      gridTexture: { type: 't', value: gridTexture }
+      gridTexture: { type: 't', value: null },
+      width: {type: "f", value: WIDTH},
+      height: {type: "f", value: HEIGHT}
     };
+
+    function setTexture(url) {
+      var gridTexture = THREE.ImageUtils.loadTexture(url);
+      gridTexture.wrapS = gridTexture.wrapT = THREE.RepeatWrapping;
+      gridTexture.repeat.set( 2, 2  );
+
+      uniforms.gridTexture.value = gridTexture;
+    }
+    setTexture('images/uvgrid.jpg');
 
   	// the camera starts at 0,0,0 so pull it back
   	camera.position.z = 5;
@@ -314,8 +292,12 @@
       var WIDTH = $('#display-area').width(),
     	    HEIGHT = $('#display-area').height();
 
-      var side = Math.min(WIDTH, HEIGHT);
-      renderer.setSize(side, side);
+      // We need to update the uniforms passed to the shader so it can later
+      // compute the aspect ratio and maintain square pixels.
+      uniforms.width.value = WIDTH;
+      uniforms.height.value = HEIGHT;
+
+      renderer.setSize(WIDTH, HEIGHT);
     }
 
     reset_camera();
@@ -323,24 +305,21 @@
   	// attach the render-supplied DOM element
   	$container.append(renderer.domElement);
 
-    var pegParser = PEG.buildParser( $('#complex-expression-peg-grammar').text() );
-    var compiledExpression = pegParser.parse('z');
+    // Produce the Parser based on our grammar
+    $(function(){
+        window.pegParser = PEG.buildParser( $('#complex-expression-peg-grammar').text() );
+    });
 
-  	var shaderMaterial = new THREE.ShaderMaterial({
-      uniforms: uniforms,
-  		vertexShader:   $('#vertexshader').text(),
-  		fragmentShader: $('#fragmentshader').text().replace('EXPRESSION', compiledExpression)
-  	});
-
+    // Make a full-screen quad and add it to the THREE.js scene
     var plane = new THREE.PlaneBufferGeometry( WIDTH, HEIGHT );
-    var quad = new THREE.Mesh( plane, shaderMaterial );
+    var quad = new THREE.Mesh( plane, null );
     quad.position.z = 0;
-
 		scene.add( quad );
 
-  	// draw!
-
-    function update_expression(new_expression) {
+    // Whenever the user updates the input field, we need to parse and produce a
+    // new shader to update what's being displayed.
+    function update_expression() {
+      var new_expression = $('#equation-input').val();
       var compiledExpression = pegParser.parse(new_expression);
 
     	var shaderMaterial = new THREE.ShaderMaterial({
@@ -352,7 +331,17 @@
       quad.material = shaderMaterial;
     }
 
+    // When rendering, we just need to make sure our convenience variables are
+    // up-to-date before we render.
     function render() {
+      // If we're rendering video, update that.
+      if(window.video && video.readyState === video.HAVE_ENOUGH_DATA )
+    	{
+    		videoImageContext.drawImage( video, 0, 0, videoImage.width, videoImage.height );
+    		if ( videoTexture )
+    			videoTexture.needsUpdate = true;
+    	}
+
       quad.material.uniforms.t.value = Math.sin( new Date().getTime() * 0.001 );
       quad.material.uniforms.t.needsUpdate = true;
       renderer.render(scene, camera);
@@ -360,19 +349,49 @@
       requestAnimationFrame(render);
     }
 
-    update_expression('z');
-    render();
-
-    $('#equation-input').change(function() {
-      var expression_text = $(this).val();
-      update_expression( expression_text );
-      render();
+    // When the user clicks one of the images/webcam icon, change the background
+    $('#texture-options a').each(function() {
+      $(this).click(function() {
+        var texture_path = $(this).find('img').first().attr('src');
+        if(texture_path) {
+          setTexture(texture_path);
+        } else {
+          // Currently, the only other option here is to stream from the webcam.
+          initWebCam();
+        }
+      });
     });
 
-    $( window ).resize(function() {
-      reset_camera();
+    // When the user presses the button, show some copyable text
+    function showLink() {
+      var expression_base64 = btoa( $('#equation-input').val() );
+
+      var url = [location.protocol, '//', location.host, location.pathname].join('');
+      url = url + "?expression=" + expression_base64;
+
+      $('#copyable-link').val(url);
+      $('#link-container').show();
+      $('#copyable-link').select();
+    }
+    $('#copyable-link').blur(function(){
+      $('#link-container').hide();
     });
 
+    // If the user already specified
+    $(function(){
+      var expression_base64 = getQueryVariable('expression');
+      console.log(expression_base64);
+      if( expression_base64 ) {
+        $('#equation-input').val( atob(expression_base64.replace('/', '')) );
+      }
+    });
+
+    // Get things started.
+    $('#equation-input').change( update_expression );
+    $('#show-link').click( showLink );
+    $( window ).resize( reset_camera );
+    $( update_expression );
+    $( render );
 	</script>
 
 </body>

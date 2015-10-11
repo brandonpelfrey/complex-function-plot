@@ -1,0 +1,85 @@
+* {
+  box-sizing: border-box;
+}
+
+html,body {
+  background-color: rgba(30,30,30,1);
+  font-family: 'Roboto', sans-serif;
+  color: rgba(210,210,210,1);
+
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+#container {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.input-control {
+  z-index: 10;
+  font-size: x-large;
+  margin: 5px;
+}
+
+#display-area {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+h1 {
+  margin: 0;
+  display: inline;
+}
+
+.full-width {
+  width: 100%;
+  position: absolute;
+  bottom: 1em;
+  text-align: center;
+}
+
+.dark-translucent {
+  background-color: rgba(0,0,0,0.85);
+  padding: 10px;
+  border-radius: 5px 5px;
+  box-shadow: 0 0 10px black;
+}
+
+#equation-input {
+  border: 0;
+  color: inherit;
+  text-align: left;
+  width: 45%;
+  display: inline-block;
+  color: rgba(255,255,255,.95);
+}
+
+.separator {
+  margin: 10px 0 10px 0;
+  border-bottom: 1px solid rgba(200,200,200,1);
+}
+
+.control-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+a {
+  color: tomato;
+  text-decoration: none;
+}
+
+img.thumbnail {
+  width: 1.2em;
+  vertical-align: text-bottom;
+}
