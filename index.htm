@@ -112,9 +112,16 @@
 
   Factor
     = "(" _ expr:Expression _ ")" { return expr; }
-    / _ "log" _ "(" _ arg:Expression _ ")" _ { return 'complex_log(' + arg + ')'; }
-    / _ "cos" _ "(" _ arg:Expression _ ")" _ { return 'complex_cos(' + arg + ')'; }
-    / _ "sin" _ "(" _ arg:Expression _ ")" _ { return 'complex_sin(' + arg + ')'; }
+    / _ "log"  _ "(" _ arg:Expression _ ")" _ { return 'complex_log(' + arg + ')'; }
+    / _ "cos"  _ "(" _ arg:Expression _ ")" _ { return 'complex_cos(' + arg + ')'; }
+    / _ "sin"  _ "(" _ arg:Expression _ ")" _ { return 'complex_sin(' + arg + ')'; }
+    / _ "iter" _ "(" _ arg:Expression _ "," _ count:PositiveInteger _ ")" _ {
+      var n = parseInt(count) - 1, Q = arg;
+      for(var it=0; it < n; ++it) {
+        Q = Q.replace(/complex\(a,b\)/g, '(' + Q + ')');
+      }
+      return Q;
+    }
     / Complex
 
   Complex
@@ -135,8 +142,11 @@
     / "r"     { return 'complex_r(a,b)'; }
 
   Integer "integer"
+    = "-" int:Integer { return "-" + int;}
+    / PositiveInteger
+
+  PositiveInteger
     = [0-9]+ { return text(); }
-    / "-" int:Integer { return "-" + int;}
 
   _ "whitespace"
     = [ \t\n\r]*
@@ -145,9 +155,8 @@
   <!-- Shaders -->
 	<script type="x-shader/x-vertex" id="vertexshader">
 		// switch on high precision floats
-		#ifdef GL_ES
-		  precision highp float;
-		#endif
+    precision highp float;
+
     varying vec2 vUv;
     uniform float t;
 
@@ -159,9 +168,7 @@
 	</script>
 
 	<script type="x-shader/x-fragment" id="fragmentshader">
-		#ifdef GL_ES
-		  precision highp float;
-		#endif
+    precision highp float;
 
     #define M_PI 3.1415926535897932384626433832795
     #define M_E 2.7182818284
@@ -227,16 +234,27 @@
       return vec2( log( length(x) ), arg(x) );
     }
 
+    bool isNan(float val)
+    {
+        return (val <= 0.0 || 0.0 <= val) ? false : true;
+    }
+
 		void main()
 		{
       float a = vUv.x*2.0 - 1.0;
       float b = vUv.y*2.0 - 1.0;
       const float scale = 2.0;
 
+      // Make sure pixels are square
       a *= scale * width / height;
       b *= scale;
 
       vec2 final_expr = EXPRESSION;
+
+      float L = length(final_expr);
+      if(isNan(length(final_expr)) || L > 1.0e10) {
+        discard;
+      }
 
       // TODO : Make this user-controlled
       if(false) {
@@ -255,7 +273,8 @@
 
       } else {
         // Texture-based Domain Coloring
-
+        //final_expr = min(vec2(1.0, 1.0), final_expr);
+        //final_expr = max(vec2(-1.0, -1.0), final_expr);
         vec4 tex = texture2D(gridTexture, final_expr / (2.0*scale) + vec2(0.5,-0.5));
         gl_FragColor = vec4( tex.xyz, 1.0 );
 
