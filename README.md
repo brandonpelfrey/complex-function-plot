@@ -1,6 +1,7 @@
 ![Plotter Screenshot](http://i.imgur.com/SyPTmI5.png)
 
-## [Complex Function Plotter](http://brandonpelfrey.github.io/complex-function-plot/?expression=el4yIC0gMS96#)
+## Complex Function Plotter 
+#### [Live Demo](http://brandonpelfrey.github.io/complex-function-plot/?expression=el4yIC0gMS96#)
 
 A WebGL-based complex expression parser and plotter.
 
